@@ -384,104 +384,6 @@ void copyDataFromPgmToI2cEeprom(unsigned int &eeAddress, unsigned int pgmAddress
   //PTLF("finish copying to I2C EEPROM");
 }
 
-//IMU section
-#include <quaternion.h>
-#include <sensor_processing_lib.h>
-#include <vector_3d.h>
-const int MPU_addr = 0x68; // I2C address of the MPU-6050
-int16_t AcX = 0, AcY = 0, AcZ = 1, Tmp, GyX = 0, GyY = 0, GyZ = 0;
-unsigned long Start = 0;
-float delta, ax, ay, az, wx, wy, wz;
-euler_angles angles;
-Quaternion q, q_new, q_acc, q_gyro;
-vector_ijk virtual_gravity, sensor_gravity, temp;
-float meanP = 0, meanR = 0;
-float ypr[3];
-
-bool checkGyro = true;
-
-void readIMU() {
-  Wire.beginTransmission(MPU_addr);
-  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU_addr, 14, true); // request a total of 14 registers
-  if (checkGyro) {
-    AcX = Wire.read() << 8 | Wire.read(); // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
-    AcY = Wire.read() << 8 | Wire.read(); // 0x3D (ACCEL_YOUT_H) & 0x3E (ACCEL_YOUT_L)
-    AcZ = Wire.read() << 8 | Wire.read(); // 0x3F (ACCEL_ZOUT_H) & 0x40 (ACCEL_ZOUT_L)
-    Tmp = Wire.read() << 8 | Wire.read(); // 0x41 (TEMP_OUT_H) & 0x42 (TEMP_OUT_L)
-    GyX = Wire.read() << 8 | Wire.read(); // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
-    GyY = Wire.read() << 8 | Wire.read(); // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
-    GyZ = Wire.read() << 8 | Wire.read(); // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
-
-    wx = 0.03 * GyX;
-    wy = 0.03 * GyY;
-    wz = 0.03 * GyZ;
-    ax = int(AcX);
-    ay = int(AcY);
-    az = int(AcZ);
-
-    sensor_gravity.a = ax;
-    sensor_gravity.b = ay;
-    sensor_gravity.c = az;
-
-    sensor_gravity = vector_3d_normalize(sensor_gravity);
-
-    delta = 0.001 * (millis() - Start);
-    q_gyro = quaternion_from_gyro(wx, wy, wz, delta);
-    virtual_gravity = quaternion_rotate_vector(temp, q_gyro);
-    virtual_gravity = vector_3d_scale(virtual_gravity, 15);
-    temp = vector_3d_sum(virtual_gravity, sensor_gravity);
-    temp = vector_3d_normalize(temp);
-    q_acc = quaternion_from_accelerometer(temp.a, temp.b, temp.c);
-    angles = quaternion_to_euler_angles(q_acc);
-    Start = millis();
-    ypr[1] = -float(angles.pitch);
-    ypr[2] = float(angles.roll > 0 ? angles.roll - 180 : angles.roll + 180);
-
-  }
-  else {
-    for (byte i = 0; i < 14; i++)
-      Wire.read();
-  }
-  //    PT(ypr[1]);
-  //    PT('\t');
-  //    PTL(ypr[2]);
-}
-void imuInit() {
-  Wire.beginTransmission(MPU_addr);
-  Wire.write(0x6B);  // PWR_MGMT_1 register
-  Wire.write(0);     // set to zero (wakes up the MPU-6050)
-  Wire.endTransmission(true);
-  Wire.beginTransmission(MPU_addr);
-  Wire.write(0x1B);  // GYRO_CONFIG register
-  Wire.write(0x10);     // set to 0x10 (+- 1000 deg/s)
-  Wire.endTransmission(true);
-  Wire.beginTransmission(MPU_addr);
-  Wire.write(0x1C);  // ACCEL_CONFIG register
-  Wire.write(0x08);     // set to 0x10 (+- 4g)
-  Wire.endTransmission(true);
-}
-void findImuOffset() {
-  int skip = 100, sampleN = 500;
-  for (int i = 0; i < skip + sampleN; i++) {
-    readIMU();
-    if (i >= skip) {
-      //    Serial.print(float(angles.yaw)); Serial.print("\t");
-      //    Serial.print(float(angles.pitch)); Serial.print("\t");
-      //    Serial.println(float(angles.roll));
-      meanP += ypr[1];
-      meanR += ypr[2];
-    }
-  }
-  Serial.println();
-  meanP /= sampleN;   //will be used as a correction to the readings
-  meanR /= sampleN;
-  Serial.print(meanP);
-  Serial.print("\t");
-  Serial.println(meanR);
-  Serial.println();
-}
 
 
 /*
@@ -807,7 +709,7 @@ template <typename T> void transform( T * target,  float speedRatio = 1, byte of
   byte steps = byte(round(maxDiff / 1.0/*degreeStep*/ / speedRatio));//default speed is 1 degree per step
   //PTL(steps);
   for (byte s = 0; s <= steps; s++) {
-    readIMU();
+//    readIMU();
     for (byte i = offset; i < DOF; i++) {
       float dutyAng = (target[i - offset] + (steps == 0 ? 0 : (1 + cos(M_PI * s / steps)) / 2 * diff[i - offset]));
       calibratedPWM(i,  dutyAng);
