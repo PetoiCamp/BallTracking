@@ -13,7 +13,8 @@
    Choose MU address here: 0x60, 0x61, 0x62, 0x63
           default address: 0x60
 */
-#define MU_ADDRESS    0x60
+#define MU_ADDRESS        0x50 //in later versions we set the I2C device to 0x50, 0x51, 0x52, 0x53
+#define ALT_MU_ADDRESS    0x60
 
 #include <Arduino.h>
 #include <MuVisionSensor.h>
@@ -27,7 +28,10 @@
 #define RX_PIN 3
 SoftwareSerial mySerial(RX_PIN, TX_PIN);
 #endif
-MuVisionSensor Mu(MU_ADDRESS);
+
+MuVisionSensor *Mu;
+MuVisionSensor Mu0(MU_ADDRESS);
+MuVisionSensor Mu1(ALT_MU_ADDRESS);
 
 int xCoord, yCoord; //the x y returned by the sensor
 int xDiff, yDiff; //the scaled distance from the center of the frame
@@ -35,9 +39,6 @@ int currentX = 0, currentY = 0; //the current x y of the camera's direction in t
 int range = 100; //the frame size 0~100 on X and Y direction
 int skip = 1, counter; //an efforts to reduce motion frequency without using delay. set skip >1 to take effect
 int i2cdelay = 3;
-//int *b;
-//int jointIdx = 0;
-//int jointList[] = {0, 8, 9, 10, 11, 12, 13, 14, 15};
 
 void setup() {
   // put your setup code here, to run once:
@@ -45,24 +46,28 @@ void setup() {
   uint8_t err = 0;
 #ifdef I2C_MODE
   Wire.begin();
-
   // initialized MU on the I2C port
-  err = Mu.begin(&Wire);
+  err = Mu0.begin(&Wire);
 #elif defined SERIAL_MODE
   mySerial.begin(9600);
   // initialized MU on the soft serial port
-  err = Mu.begin(&mySerial);
+  err = Mu0.begin(&mySerial);
 #endif
   if (err == MU_OK) {
     Serial.println("MU initialized");
+    Mu = &Mu0;
   } else {
-    do {
-      Serial.println("fail to initialize");
-      delay(5000);
-    } while (1);
+    Serial.println("fail to initialize");
+    err = Mu1.begin(&Wire);
+    if (err == MU_OK) {
+      Serial.println("MU initialized");
+      Mu = &Mu1;
+    }
+    delay(1000);
   }
+
   // enable vision: ball
-  Mu.VisionBegin(VISION_BALL_DETECT);
+  (*Mu).VisionBegin(VISION_BALL_DETECT);
 
   pwm.begin();
   pwm.setPWMFreq(60 * PWM_FACTOR); // Analog servos run at ~60 Hz updates
@@ -84,11 +89,11 @@ void loop() {
   long time_start = millis();
 
   // read result
-  if (Mu.GetValue(VISION_BALL_DETECT, kStatus)) {                   // update vision result and get status, 0: undetected, other: detected
+  if ((*Mu).GetValue(VISION_BALL_DETECT, kStatus)) {                   // update vision result and get status, 0: undetected, other: detected
     //    Serial.println("vision ball detected:");
     //    Serial.print("x = ");
-    xCoord = (int)Mu.GetValue(VISION_BALL_DETECT, kXValue);
-    yCoord = (int)Mu.GetValue(VISION_BALL_DETECT, kYValue);
+    xCoord = (int)(*Mu).GetValue(VISION_BALL_DETECT, kXValue);
+    yCoord = (int)(*Mu).GetValue(VISION_BALL_DETECT, kYValue);
     //Serial.print(xCoord);       // get vision result: x axes value
     //Serial.print('\t');
     //    Serial.print("y = ");
