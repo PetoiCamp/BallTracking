@@ -6,5 +6,7 @@ The battery should be turned on to drive the servos.
 You can use this 3D printed [bone](https://github.com/PetoiCamp/NonCodeFiles/blob/master/stl/bone.stl) to attach the camera module. After uploading the code, you may need to press the reset buttons on the module and the NyBoard. 
 
 The tracking demo works the best with a yellow tennis ball or some other round objects. Below is a short demo.
- 
- [![BallTracking](https://img.youtube.com/vi/CxGI-MzCGWM/0.jpg)](https://www.youtube.com/watch?v=CxGI-MzCGWM)
+
+[![](https://github.com/PetoiCamp/NonCodeFiles/blob/master/gif/ball.gif)](https://www.youtube.com/watch?v=CxGI-MzCGWM)
+
+Click the GIF to open the YouTube demo. 
