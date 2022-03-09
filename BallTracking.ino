@@ -39,6 +39,10 @@ int currentX = 0, currentY = 0; //the current x y of the camera's direction in t
 int range = 100; //the frame size 0~100 on X and Y direction
 int skip = 1, counter; //an efforts to reduce motion frequency without using delay. set skip >1 to take effect
 int i2cdelay = 3;
+long noResultTime = 0;
+MuVisionType object[] = {VISION_BODY_DETECT, VISION_BALL_DETECT};
+String objectName[] = {"body", "ball"};
+int objectIdx = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -56,7 +60,8 @@ void setup() {
   if (err == MU_OK) {
     Serial.println("MU initialized");
     Mu = &Mu0;
-  } else {
+  }
+  else {
     Serial.println("fail to initialize");
     err = Mu1.begin(&Wire);
     if (err == MU_OK) {
@@ -66,9 +71,6 @@ void setup() {
     delay(1000);
   }
 
-  // enable vision: ball
-  (*Mu).VisionBegin(VISION_BALL_DETECT);
-
   pwm.begin();
   pwm.setPWMFreq(60 * PWM_FACTOR); // Analog servos run at ~60 Hz updates
 
@@ -77,46 +79,48 @@ void setup() {
     servoCalibs[i] = servoCalib(i);
     calibratedDuty0[i] =  SERVOMIN + PWM_RANGE / 2 + float(middleShift(i) + servoCalibs[i]) * pulsePerDegree[i]  * rotationDirection(i) ;
   }
-  shutServos();
+  //  shutServos();
   counter = 0;
   //  motion.loadBySkillName("rest");
   //  transform(motion.dutyAngles);
 
+  (*Mu).VisionBegin(object[objectIdx]);
+  noResultTime = millis();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  long time_start = millis();
-
   // read result
-  if ((*Mu).GetValue(VISION_BALL_DETECT, kStatus)) {                   // update vision result and get status, 0: undetected, other: detected
-    //    Serial.println("vision ball detected:");
-    //    Serial.print("x = ");
-    xCoord = (int)(*Mu).GetValue(VISION_BALL_DETECT, kXValue);
-    yCoord = (int)(*Mu).GetValue(VISION_BALL_DETECT, kYValue);
-    //Serial.print(xCoord);       // get vision result: x axes value
-    //Serial.print('\t');
-    //    Serial.print("y = ");
-    //    Serial.println(yCoord);       // get vision result: y axes value
-    //    Serial.print("width = ");
+  bool objectDetected [] = {false, false};
+  for (int test = 0; test < sizeof(object) / 2; test++) //switch between ball and body
+    if (test == objectIdx && (objectDetected[objectIdx] = (*Mu).GetValue(object[objectIdx], kStatus))) { // update vision result and get status, 0: undetected, other:
+      //      PTL(objectName[objectIdx]);
+      noResultTime = millis(); //update the timer
 
-    //    Serial.println(Mu.GetValue(VISION_BALL_DETECT, kWidthValue));   // get vision result: width value
-    //    Serial.print("height = ");
-    //    Serial.println(Mu.GetValue(VISION_BALL_DETECT, kHeightValue));  // get vision result: height value
-    //    Serial.print("label = ");
-    //    switch (Mu.GetValue(VISION_BALL_DETECT, kLabel)) {              // get vision result: label value
-    //      case MU_BALL_TABLE_TENNIS:
-    //        Serial.println("table tennis");
-    //        break;
-    //      case MU_BALL_TENNIS:
-    //        Serial.println("tennis");
-    //        break;
-    //      default:
-    //        Serial.println("unknow ball type");
-    //        break;
-    //    }
+      xCoord = (int)(*Mu).GetValue(object[objectIdx], kXValue);
+      yCoord = (int)(*Mu).GetValue(object[objectIdx], kYValue);
 
-    //delay(i2cdelay);
+      //      Serial.print(xCoord);       // get vision result: x axes value
+      //      Serial.print('\t');
+      //      Serial.print("y = ");
+      //      Serial.println(yCoord);       // get vision result: y axes value
+      //      Serial.print("width = ");
+
+      //      if (objectIdx == 1)
+      //        switch ((*Mu).GetValue(VISION_BALL_DETECT, kLabel)) {              // get vision result: label value
+      //          case MU_BALL_TABLE_TENNIS:
+      //            Serial.println("table tennis");
+      //            break;
+      //          case MU_BALL_TENNIS:
+      //            Serial.println("tennis");
+      //            break;
+      //          default:
+      //            Serial.println("unknow ball type");
+      //            break;
+      //        }
+      //delay(i2cdelay);
+    }
+
+  if (objectDetected[0] || objectDetected[1]) {
     if (!(counter % skip)) {
       xDiff = max(min((xCoord - range / 2) / 4, 30), -30);
       yDiff = max(min((yCoord - range / 2) / 4, 20), -20);
@@ -124,25 +128,6 @@ void loop() {
       currentX = max(min(currentX - min(xDiff, 40), 80), -90);
       currentY = max(min(currentY - min(yDiff, 30), 60), -75);
 
-      //      calibratedPWM(0, currentX / 1.5);
-      //      delay(i2cdelay);
-      //      calibratedPWM(8, 60 - currentY / 1.5);
-      //      delay(i2cdelay);
-      //      calibratedPWM(9, 60 - currentY / 1.5);
-      //      delay(i2cdelay);
-      //      calibratedPWM(12, 15 + currentY * 1.2);
-      //      delay(i2cdelay);
-      //      calibratedPWM(13, 15 + currentY * 1.2);
-      //      delay(i2cdelay);
-      //
-      //      calibratedPWM(10, 105 - currentY / 3);
-      //      delay(i2cdelay);
-      //      calibratedPWM(11, 105 - currentY / 3);
-      //      delay(i2cdelay);
-      //      calibratedPWM(14, -45 + currentY / 3);
-      //      delay(i2cdelay);
-      //      calibratedPWM(15, -45 + currentY / 3);
-      //      delay(i2cdelay);
 
       int a[DOF] = {currentX / 1.2, 0, 0, 0, \
                     0, 0, 0, 0, \
@@ -150,33 +135,15 @@ void loop() {
                     15 + currentY / 1.2  - currentX / 3, 15 + currentY / 1.2 + currentX / 3, -30 - currentY / 3 + currentX / 4, -30 - currentY / 3 - currentX / 4\
                    };
       transform(a, 4);
-
-      //      int a[9] = {currentX / 1.5, \
-      //                  60 - currentY / 1.5, 60 - currentY / 1.5, 105 - currentY / 3, 105 - currentY / 3, \
-      //                  15 + currentY * 1.2, 15 + currentY * 1.2, -45 + currentY / 3, -45 + currentY / 3\
-      //                 };
-      //      b = a;
-
-      //            Serial.print(yCoord);
-      //            Serial.print('\t');
-      //            Serial.print(yDiff);
-      //            Serial.print('\t');
-      //            Serial.print(currentY);
-      //            Serial.print('\t');
-      //            Serial.println(max(min(currentY, 30), -30));
-
-      //delay(5);
     }
-
-  } else {
-
-    //Serial.println("vision ball undetected.");
+  }
+  else if (millis() - noResultTime > 2000) {// if no object is detected for 2 seconds, switch object
+    objectIdx = (objectIdx + 1) % (sizeof(object) / 2);
+    (*Mu).VisionBegin(object[objectIdx]);
+    PTL(objectName[objectIdx]);
+    noResultTime = millis();
   }
   //    Serial.print("fps = ");
   //    Serial.println(1000/(millis()-time_start));
   //    Serial.println();
-  //  calibratedPWM(jointIdx, b[jointIdx]);
-  //  delay(3);
-  //  jointIdx = (jointIdx + 1) % 9;
-
 }
